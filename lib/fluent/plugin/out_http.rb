@@ -4,8 +4,10 @@ class Fluent::HTTPOutput < Fluent::Output
   def initialize
     super
     require 'net/http'
+    require 'net/https'
     require 'uri'
     require 'yajl'
+    require 'openssl'
   end
 
   # Endpoint URL ex. localhost.local/api/
@@ -21,6 +23,9 @@ class Fluent::HTTPOutput < Fluent::Output
   # since the last one.
   config_param :rate_limit_msec, :integer, :default => 0
 
+  # Ssl option
+  config_param :use_ssl, :bool, :default => false
+
   # Raise errors that were rescued during HTTP requests?
   config_param :raise_on_error, :bool, :default => true
 
@@ -31,6 +36,8 @@ class Fluent::HTTPOutput < Fluent::Output
 
   def configure(conf)
     super
+
+    @use_ssl = conf['use_ssl']
 
     serializers = [:json, :form]
     @serializer = if serializers.include? @serializer.intern
@@ -106,7 +113,12 @@ class Fluent::HTTPOutput < Fluent::Output
         req.basic_auth(@username, @password)
       end
       @last_request_time = Time.now.to_f
-      res = Net::HTTP.new(uri.host, uri.port).start {|http| http.request(req) }
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = @use_ssl
+      http.ca_file = OpenSSL::X509::DEFAULT_CERT_FILE 
+#      https.verify_mode = OpenSSL::SSL::VERIFY_PEER
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      res = http.start {|http| http.request(req) }
     rescue => e # rescue all StandardErrors
       # server didn't respond
       $log.warn "Net::HTTP.#{req.method.capitalize} raises exception: #{e.class}, '#{e.message}'"
