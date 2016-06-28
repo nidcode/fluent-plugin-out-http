@@ -58,6 +58,8 @@ class Fluent::HTTPOutput < Fluent::Output
             else
               :none
             end
+
+    @proxy_addr, @proxy_port = ENV['http_proxy'].sub('http://', '').split(':') if ENV['http_proxy']
   end
 
   def start
@@ -113,7 +115,11 @@ class Fluent::HTTPOutput < Fluent::Output
         req.basic_auth(@username, @password)
       end
       @last_request_time = Time.now.to_f
-      http = Net::HTTP.new(uri.host, uri.port)
+      if ENV['http_proxy']
+        Net::HTTP.new(uri.host, uri.port, @proxy_addr, @proxy_port)
+      else
+        Net::HTTP.new(uri.host, uri.port)
+      end
       http.use_ssl = @use_ssl
       http.ca_file = OpenSSL::X509::DEFAULT_CERT_FILE 
 #      https.verify_mode = OpenSSL::SSL::VERIFY_PEER
